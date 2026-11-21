@@ -1,0 +1,17 @@
+name: Check prices
+on:
+  schedule:
+    - cron: "0 21 * * *"   # 21:00 UTC = about 7:30am in Adelaide
+  workflow_dispatch:        # lets you run it manually from the Actions tab
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r scraper/requirements.txt && playwright install --with-deps chromium
+      - run: python scraper/scrape.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
