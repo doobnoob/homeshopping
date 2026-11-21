@@ -2,7 +2,7 @@
 and logs a new row only when the price has changed."""
 import os, re, json, time
 from datetime import datetime, timezone
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 import requests
 from bs4 import BeautifulSoup
 
@@ -11,6 +11,8 @@ SB_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 HDR = {"apikey": SB_KEY, "Content-Type": "application/json"}
 if not SB_KEY.startswith("sb_secret_"):  # legacy service_role keys are JWTs and also go in Authorization
     HDR["Authorization"] = f"Bearer {SB_KEY}"
+COUNTRY = os.environ.get("SHOP_COUNTRY", "AU")  # Shopify shops price by country; the runner is in the US
+COOKIES = {"localization": COUNTRY}
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 
@@ -48,7 +50,7 @@ def from_jsonld(soup):
         for n in walk(data):
             if "Offer" not in str(n.get("@type", "")): continue
             spec = n.get("priceSpecification")
-            spec = spec[0] if isinstance(spec, list) and spec else spec
+            spec = spec if isinstance(spec, list) and spec else spec
             p = to_num(n.get("price") or n.get("lowPrice") or (spec or {}).get("price"))
             if p: return p
 
@@ -61,10 +63,29 @@ def from_meta(soup):
 
 def extract(soup, selector):
     if selector:
-        el = soup.select_one(selector)
+        el = soup.select_one(selector[0])
         p = to_num(el.get("content") or el.get_text()) if el else None
         if p: return p
     return from_jsonld(soup) or from_meta(soup)
+
+def from_shopify(url):
+    """Shopify shops expose exact per-variant prices at /products/<handle>.js"""
+    u = urlparse(url)
+    m = re.match(r"^/products/([^/?#]+)", u.path)
+    if not m: return None
+    try:
+        r = requests.get(f"{u.scheme}://{u.netloc}/products/{m.group(1)}.js",
+                         headers={"User-Agent": UA}, cookies=COOKIES, timeout=25)
+        if not r.ok: return None
+        variants = r.json().get("variants") or []
+    except Exception:
+        return None
+    if not variants: return None
+    vid = parse_qs(u.query).get("variant", [None])[0]
+    v = (next((x for x in variants if str(x.get("id")) == vid), None)
+         or next((x for x in variants if x.get("available")), variants[0]))
+    p = v.get("price")
+    return p / 100 if isinstance(p, int) else to_num(p)
 
 def fetch(url, js):
     if js:
@@ -74,7 +95,7 @@ def fetch(url, js):
             pg = b.new_page(user_agent=UA)
             pg.goto(url, wait_until="networkidle", timeout=45000)
             html = pg.content(); b.close(); return html
-    r = requests.get(url, headers={"User-Agent": UA, "Accept-Language": "en-AU,en;q=0.9"}, timeout=25)
+    r = requests.get(url, headers={"User-Agent": UA, "Accept-Language": "en-AU,en;q=0.9"}, cookies=COOKIES, timeout=25)
     r.raise_for_status()
     return r.text
 
@@ -84,8 +105,11 @@ def main():
     for it in items:
         status, price = "ok", None
         try:
-            soup = BeautifulSoup(fetch(it["url"], it.get("render_js")), "html.parser")
-            price = extract(soup, it.get("selector"))
+            if not it.get("selector"):
+                price = from_shopify(it["url"])
+            if price is None:
+                soup = BeautifulSoup(fetch(it["url"], it.get("render_js")), "html.parser")
+                price = extract(soup, it.get("selector"))
             if price is None: status = "no price found"
         except Exception as e:
             status = f"error: {str(e)[:120]}"
@@ -102,3 +126,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+ 
