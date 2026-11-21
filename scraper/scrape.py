@@ -8,14 +8,17 @@ from bs4 import BeautifulSoup
 
 SB_URL = os.environ["SUPABASE_URL"].rstrip("/")
 SB_KEY = os.environ["SUPABASE_SERVICE_KEY"]
-HDR = {"apikey": SB_KEY, "Authorization": f"Bearer {SB_KEY}", "Content-Type": "application/json"}
+HDR = {"apikey": SB_KEY, "Content-Type": "application/json"}
+if not SB_KEY.startswith("sb_secret_"):  # legacy service_role keys are JWTs and also go in Authorization
+    HDR["Authorization"] = f"Bearer {SB_KEY}"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 
 def sb(method, path, extra=None, **kw):
     r = requests.request(method, f"{SB_URL}/rest/v1/{path}",
                          headers={**HDR, **(extra or {})}, timeout=30, **kw)
-    r.raise_for_status()
+    if not r.ok:
+        raise SystemExit(f"Supabase error {r.status_code} on {method} {path.split('?')[0]}: {r.text[:300]}")
     return r.json() if r.text else None
 
 def to_num(v):
