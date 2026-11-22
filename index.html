@@ -13,26 +13,31 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .wrap{max-width:680px;margin:0 auto;padding:16px}
 h1{font-size:1.4rem;margin:4px 0 2px}.sub{color:var(--mute);font-size:.9rem;margin:0 0 14px}
+h2.cat{font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:16px 2px 6px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
-input{font:inherit;color:inherit;width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
+input,select{font:inherit;color:inherit;width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
 button{font:inherit;border:0;border-radius:9px;padding:9px 14px;background:var(--accent);color:var(--accent-ink);cursor:pointer;font-weight:600}
 button.ghost{background:var(--chip);color:var(--ink);font-weight:500}
 button.link{background:none;color:var(--mute);padding:4px 6px;font-weight:400;font-size:.85rem}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.row>*{flex:1 1 140px;min-width:0}
-.chips{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}.chips button{padding:5px 12px;font-size:.85rem}.chips button.on{background:var(--accent);color:var(--accent-ink)}
+.chips{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap;align-items:center}.chips button{padding:5px 12px;font-size:.85rem}.chips button.on{background:var(--accent);color:var(--accent-ink)}
+.chips select{width:auto;padding:5px 8px;font-size:.85rem}
 .item{display:flex;gap:10px;align-items:center;cursor:pointer}.item .main{flex:1;min-width:0}
+.thumb{width:52px;height:52px;border-radius:9px;object-fit:cover;background:var(--chip);flex:0 0 auto}
 .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bought .name{text-decoration:line-through;color:var(--mute)}
-.meta{font-size:.82rem;color:var(--mute)}.price{font-weight:700;font-size:1.1rem;text-align:right}
+.meta{font-size:.82rem;color:var(--mute)}.price{font-weight:700;font-size:1.1rem;text-align:right;white-space:nowrap}
 .badge{display:inline-block;font-size:.75rem;padding:2px 8px;border-radius:99px;background:var(--chip);margin:3px 4px 0 0}
 .badge.good{background:var(--goodbg);color:var(--good)}.badge.warn{background:var(--warnbg);color:var(--warn)}
 .detail{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
-.hist{width:100%;font-size:.88rem;border-collapse:collapse;margin-top:6px}.hist td{padding:4px 2px;border-bottom:1px solid var(--line)}.hist td:last-child{text-align:right}
+.sec{font-size:.82rem;font-weight:700;margin:12px 0 2px}
+.hist{width:100%;font-size:.88rem;border-collapse:collapse}.hist td{padding:4px 2px;border-bottom:1px solid var(--line)}.hist td:last-child{text-align:right}
 svg.spark{width:100%;height:64px;display:block;margin:6px 0}
 .empty{text-align:center;color:var(--mute);padding:28px 8px}
 label.chk{display:flex;align-items:center;gap:6px;font-size:.88rem;flex:0 0 auto}label.chk input{width:auto}
 a{color:var(--accent)}.top{display:flex;justify-content:space-between;align-items:center}
 #err{color:var(--warn);font-size:.85rem;min-height:1.2em}
+details.u{border:1px solid var(--line);border-radius:10px;padding:6px 10px;margin:6px 0}details.u summary{cursor:pointer;font-size:.88rem}
 </style>
 </head>
 <body>
@@ -48,8 +53,10 @@ a{color:var(--accent)}.top{display:flex;justify-content:space-between;align-item
 
   <div id="app" hidden>
     <div class="card">
-      <div class="row"><input id="n-name" placeholder="Item (e.g. Merino socks)"><input id="n-url" placeholder="Product URL" inputmode="url"></div>
-      <div class="row"><input id="n-price" placeholder="Current price (optional)" inputmode="decimal"><input id="n-target" placeholder="Target price (optional)" inputmode="decimal"><button id="add">Add to list</button></div>
+      <div class="row"><input id="n-url" placeholder="Paste a product link" inputmode="url"><input id="n-name" placeholder="Name (leave blank to auto-fill)"></div>
+      <div class="row"><input id="n-cat" list="cats" placeholder="Category (e.g. Home, Gifts)"><input id="n-price" placeholder="Price now (optional)" inputmode="decimal"><input id="n-target" placeholder="Target price (optional)" inputmode="decimal"></div>
+      <button id="add">Add to list</button>
+      <datalist id="cats"></datalist>
     </div>
     <div class="chips" id="chips"></div>
     <div id="list"><div class="empty">Loading…</div></div>
@@ -57,13 +64,11 @@ a{color:var(--accent)}.top{display:flex;justify-content:space-between;align-item
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <script>
-// ====== PUT YOUR SUPABASE DETAILS HERE (Project Settings > API). The anon key is safe to publish. ======
-const SUPABASE_URL = "https://otdybpdupathudqxlrqv.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_Tt99HaP2YRhnOPB4IgWKuQ_rhX70x5X";
-// ========================================================================================================
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-let items = [], prices = [], filter = 'all', openId = null;
+const CFG = window.APP_CONFIG || {};
+const db = supabase.createClient(CFG.SUPABASE_URL || 'http://invalid', CFG.SUPABASE_ANON_KEY || 'invalid');
+let items = [], urls = [], prices = [], filter = 'all', cat = 'all', openId = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = n => '$' + Number(n).toFixed(2);
@@ -73,18 +78,31 @@ const safeUrl = u => { try { const x = new URL(u); return /^https?:$/.test(x.pro
 const fmtDate = d => { try { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, {day:'numeric', month:'short', year:'numeric'}) } catch { return d } };
 const num = v => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return isFinite(n) && n >= 0 ? n : null };
 const fail = e => { console.error(e); $('err').textContent = 'Something went wrong: ' + (e.message || e); };
+const byDate = (a, b) => a.on_date < b.on_date ? -1 : a.on_date > b.on_date ? 1 : a.created_at < b.created_at ? -1 : 1;
+function nameFromUrl(u) {
+  try { let s = decodeURIComponent(new URL(u).pathname.split('/').filter(Boolean).pop() || '');
+    s = s.replace(/\.[a-z0-9]{2,5}$/i, '').replace(/[-_+]+/g, ' ').trim();
+    return (!s || /^\d+$/.test(s)) ? host(u) : s.replace(/\b\w/g, c => c.toUpperCase()); } catch { return ''; }
+}
 
-function stats(id) {
-  const ps = prices.filter(p => p.item_id === id).sort((a, b) => a.on_date < b.on_date ? -1 : a.on_date > b.on_date ? 1 : a.created_at < b.created_at ? -1 : 1);
-  if (!ps.length) return {ps};
-  const latest = ps[ps.length - 1];
-  let low = ps[0]; ps.forEach(p => { if (Number(p.price) < Number(low.price)) low = p });
-  const byStore = {}; ps.forEach(p => { byStore[p.store || 'Unknown'] = p });
-  return {ps, latest, low, byStore, cheaper: Number(latest.price) > Number(low.price) + 0.004};
+function stats(it) {
+  const us = urls.filter(u => u.item_id === it.id);
+  const ps = prices.filter(p => p.item_id === it.id).sort(byDate);
+  if (!ps.length) return {us, ps, rows: []};
+  const hostMap = {}; us.forEach(u => { hostMap[u.store || host(u.url)] = u.id; });
+  const cur = {};
+  ps.forEach(p => {   // later entries overwrite earlier ones, so each source keeps its latest price
+    const k = p.url_id || hostMap[p.store] || (p.source === 'manual' ? 'm:' + (p.store || '') : null);
+    if (k) cur[k] = p;
+  });
+  const rows = Object.entries(cur).map(([k, p]) => ({k, p})).sort((a, b) => a.p.price - b.p.price);
+  const best = rows.length ? rows[0].p : ps[ps.length - 1];
+  let low = ps[0]; ps.forEach(p => { if (Number(p.price) < Number(low.price)) low = p; });
+  return {us, ps, rows, best, low, cheaper: Number(best.price) > Number(low.price) + 0.004};
 }
 function badge(st) {
-  if (!st.latest) return '<span class="badge">No price yet</span>';
-  if (st.cheaper) { const pct = Math.round((st.latest.price - st.low.price) / st.latest.price * 100);
+  if (!st.best) return '<span class="badge">No price yet</span>';
+  if (st.cheaper) { const pct = Math.round((st.best.price - st.low.price) / st.best.price * 100);
     return `<span class="badge warn">Was ${money(st.low.price)}${st.low.store ? ' at ' + esc(st.low.store) : ''} · ${esc(fmtDate(st.low.on_date))} (−${pct}%)</span>`; }
   return st.ps.length > 1 ? '<span class="badge good">Lowest price seen</span>' : '<span class="badge">First price logged</span>';
 }
@@ -94,71 +112,114 @@ function spark(ps) {
   const pts = ps.map((p, i) => [pad + i * (w - 2 * pad) / (ps.length - 1), h - pad - (p.price - mn) / r * (h - 2 * pad)]);
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Price history"><polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>${pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="${v[i] === mn ? 4 : 2.5}" fill="${v[i] === mn ? 'var(--good)' : 'var(--accent)'}"/>`).join('')}</svg>`;
 }
-function checked(it) {
-  if (!it.url) return '';
-  if (!it.last_checked) return '<span class="badge">Not checked yet</span>';
-  return it.last_status === 'ok' ? '' : `<span class="badge warn" title="${esc(it.last_status)}">⚠ auto-check failed</span>`;
+function checkBadge(it, us) {
+  if (!us.length) return '';
+  if (us.some(u => u.last_status && u.last_status !== 'ok')) return '<span class="badge warn">⚠ a link needs attention</span>';
+  if (us.some(u => !u.last_checked)) return '<span class="badge">Waiting for first check</span>';
+  return '';
+}
+
+function cardHtml(it, st) {
+  const img = safeUrl(it.image_url) ? `<img class="thumb" src="${esc(it.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : '';
+  const bestLabel = st.rows.length > 1 ? `<div class="meta">${esc(st.best.store || '')}</div>` : '';
+  let h = `<div class="card${it.bought ? ' bought' : ''}"><div class="item" data-toggle="${it.id}"><input type="checkbox" style="width:auto" data-bought="${it.id}" ${it.bought ? 'checked' : ''} aria-label="Bought">${img}
+    <div class="main"><div class="name">${esc(it.name)}</div><div class="meta">${it.category ? esc(it.category) + ' · ' : ''}${st.us.length} link${st.us.length === 1 ? '' : 's'}${it.target ? ' · target ' + money(it.target) : ''}</div>${badge(st)}${checkBadge(it, st.us)}</div>
+    <div><div class="price">${st.best ? money(st.best.price) : '—'}</div>${bestLabel}</div></div>`;
+  if (openId !== it.id) return h + '</div>';
+  const urlById = {}; st.us.forEach(u => urlById[u.id] = u);
+  h += `<div class="detail">${spark(st.ps)}`;
+  if (st.rows.length) {
+    h += `<div class="sec">Compare stores (latest price)</div><table class="hist">${st.rows.map((x, i) => {
+      const u = urlById[x.k], link = u && safeUrl(u.url) ? ` <a href="${esc(safeUrl(u.url))}" target="_blank" rel="noopener noreferrer">open ↗</a>` : '';
+      return `<tr><td>${esc(x.p.store || 'Unknown')}${i === 0 && st.rows.length > 1 ? ' ✓' : ''}${link}</td><td>${money(x.p.price)}</td></tr>`; }).join('')}</table>`;
+  }
+  h += `<div class="sec">Links being tracked</div>`;
+  h += st.us.map(u => `<details class="u"><summary>${esc(host(u.url) || u.url)} — <span class="meta">${u.last_checked ? (u.last_status === 'ok' ? 'checked ' + esc(new Date(u.last_checked).toLocaleDateString()) : '⚠ ' + esc(u.last_status)) : 'not checked yet'}</span></summary>
+      <div class="meta" style="word-break:break-all;margin:6px 0"><a href="${esc(safeUrl(u.url))}" target="_blank" rel="noopener noreferrer">${esc(u.url)}</a></div>
+      <div class="row"><input data-us="selector" placeholder="CSS selector for price (optional)" value="${esc(u.selector || '')}"><label class="chk"><input type="checkbox" data-us="js" ${u.render_js ? 'checked' : ''}> Needs JavaScript</label></div>
+      <div class="row"><button class="ghost" data-saveurl="${u.id}">Save</button><button class="link" data-delurl="${u.id}">Remove link</button></div></details>`).join('') || '<div class="meta">No links yet.</div>';
+  h += `<div class="row" style="margin-top:6px"><input data-newurl placeholder="Add another shop’s link" inputmode="url"><button class="ghost" data-addurl="${it.id}">Add link</button></div>`;
+  h += `<div class="sec">Log a price by hand</div><div class="row"><input data-p="price" placeholder="Price" inputmode="decimal"><input data-p="store" placeholder="Store" value="${esc(st.us[0] ? host(st.us[0].url) : '')}"><input data-p="date" type="date" value="${today()}"></div>
+    <div class="row"><label class="chk"><input type="checkbox" data-p="sale"> On sale</label><button data-log="${it.id}">Log price</button></div>`;
+  if (st.ps.length) h += `<div class="sec">History</div><table class="hist">${st.ps.slice().reverse().map(p => `<tr><td>${esc(fmtDate(p.on_date))}</td><td>${esc(p.store || '')}${p.sale ? ' · sale' : ''}${p.source === 'auto' ? ' · auto' : ''}</td><td>${money(p.price)} <button class="link" data-delp="${p.id}" aria-label="Delete entry">✕</button></td></tr>`).join('')}</table>`;
+  h += `<div class="sec">Edit details</div><div class="row"><input data-e="name" value="${esc(it.name)}" placeholder="Name"><input data-e="category" list="cats" value="${esc(it.category || '')}" placeholder="Category"><input data-e="target" value="${it.target ?? ''}" placeholder="Target price" inputmode="decimal"></div>
+    <div class="row"><button class="ghost" data-savedet="${it.id}">Save details</button><button class="link" data-deli="${it.id}">Delete item</button></div></div>`;
+  return h + '</div>';
 }
 
 function render() {
-  const all = items.map(it => ({it, st: stats(it.id)}));
-  const nC = all.filter(x => x.st.cheaper && !x.it.bought).length;
-  const nT = all.filter(x => x.st.latest && x.it.target && x.st.latest.price <= x.it.target && !x.it.bought).length;
-  $('chips').innerHTML = [['all', `All (${all.length})`], ['cheaper', `Cheaper before (${nC})`], ['target', `At/below target (${nT})`], ['bought', 'Bought']]
-    .map(c => `<button class="ghost${filter === c[0] ? ' on' : ''}" data-f="${c[0]}">${c[1]}</button>`).join('');
-  const shown = all.filter(x => filter === 'bought' ? x.it.bought : !x.it.bought && (filter === 'cheaper' ? x.st.cheaper : filter === 'target' ? (x.st.latest && x.it.target && x.st.latest.price <= x.it.target) : true));
-  if (!shown.length) { $('list').innerHTML = `<div class="empty">${all.length ? 'Nothing matches this filter.' : 'Your list is empty. Add your first item above.'}</div>`; return; }
-  $('list').innerHTML = shown.map(({it, st}) => {
-    let h = `<div class="card${it.bought ? ' bought' : ''}"><div class="item" data-toggle="${it.id}"><input type="checkbox" style="width:auto" data-bought="${it.id}" ${it.bought ? 'checked' : ''} aria-label="Bought">
-      <div class="main"><div class="name">${esc(it.name)}</div><div class="meta">${esc(host(it.url) || 'No link')}${it.target ? ' · target ' + money(it.target) : ''}</div>${badge(st)}${checked(it)}</div>
-      <div class="price">${st.latest ? money(st.latest.price) : '—'}</div></div>`;
-    if (openId === it.id) {
-      const u = safeUrl(it.url), stores = Object.keys(st.byStore || {});
-      h += `<div class="detail">${u ? `<div class="row"><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">Open product page ↗</a></div>` : ''}${spark(st.ps)}
-        <div class="meta">${it.last_checked ? 'Last auto-check: ' + esc(new Date(it.last_checked).toLocaleString()) + ' — ' + esc(it.last_status) : ''}</div>
-        <div class="row" style="margin-top:8px"><input data-p="price" placeholder="Log a price" inputmode="decimal"><input data-p="store" placeholder="Store" value="${esc(host(it.url))}"><input data-p="date" type="date" value="${today()}"></div>
-        <div class="row"><label class="chk"><input type="checkbox" data-p="sale"> On sale</label><button data-log="${it.id}">Log price</button></div>`;
-      if (stores.length > 1) h += `<div class="meta" style="margin-top:8px"><b>Compare stores (latest)</b></div><table class="hist">${stores.sort((a, b) => st.byStore[a].price - st.byStore[b].price).map((s, i) => `<tr><td>${esc(s)}${i === 0 ? ' ✓' : ''}</td><td>${money(st.byStore[s].price)}</td></tr>`).join('')}</table>`;
-      if (st.ps.length) h += `<div class="meta" style="margin-top:8px"><b>History</b></div><table class="hist">${st.ps.slice().reverse().map(p => `<tr><td>${esc(fmtDate(p.on_date))}</td><td>${esc(p.store || '')}${p.sale ? ' · sale' : ''}${p.source === 'auto' ? ' · auto' : ''}</td><td>${money(p.price)} <button class="link" data-delp="${p.id}" aria-label="Delete entry">✕</button></td></tr>`).join('')}</table>`;
-      h += `<details style="margin-top:10px"><summary class="meta">Scraper settings</summary>
-        <div class="row" style="margin-top:6px"><input data-s="selector" placeholder="CSS selector for price (optional)" value="${esc(it.selector || '')}"><label class="chk"><input type="checkbox" data-s="js" ${it.render_js ? 'checked' : ''}> Needs JavaScript</label><button class="ghost" data-save="${it.id}">Save</button></div></details>
-        <div class="row" style="margin-top:6px"><button class="link" data-deli="${it.id}">Delete item</button></div></div>`;
-    }
-    return h + '</div>';
-  }).join('');
+  const cats = [...new Set(items.map(i => i.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  $('cats').innerHTML = cats.map(c => `<option value="${esc(c)}">`).join('');
+  if (cat !== 'all' && cat !== '__none' && !cats.includes(cat)) cat = 'all';
+  const all = items.map(it => ({it, st: stats(it)}));
+  const open = all.filter(x => !x.it.bought);
+  const nC = open.filter(x => x.st.cheaper).length;
+  const nT = open.filter(x => x.st.best && x.it.target && x.st.best.price <= x.it.target).length;
+  $('chips').innerHTML = [['all', `All (${open.length})`], ['cheaper', `Cheaper before (${nC})`], ['target', `At/below target (${nT})`], ['bought', 'Bought']]
+    .map(c => `<button class="ghost${filter === c[0] ? ' on' : ''}" data-f="${c[0]}">${c[1]}</button>`).join('')
+    + `<select id="catsel" aria-label="Category"><option value="all">All categories</option>${cats.map(c => `<option value="${esc(c)}"${cat === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}<option value="__none"${cat === '__none' ? ' selected' : ''}>Uncategorised</option></select>`;
+  const shown = all.filter(x => {
+    if (cat === '__none' ? x.it.category : (cat !== 'all' && x.it.category !== cat)) return false;
+    if (filter === 'bought') return x.it.bought;
+    if (x.it.bought) return false;
+    return filter === 'cheaper' ? x.st.cheaper : filter === 'target' ? (x.st.best && x.it.target && x.st.best.price <= x.it.target) : true;
+  });
+  if (!shown.length) { $('list').innerHTML = `<div class="empty">${all.length ? 'Nothing matches this filter.' : 'Your list is empty. Paste a product link above to start.'}</div>`; return; }
+  const groups = {}; shown.forEach(x => (groups[x.it.category || ''] = groups[x.it.category || ''] || []).push(x));
+  const names = Object.keys(groups).sort((a, b) => a === '' ? 1 : b === '' ? -1 : a.localeCompare(b));
+  const headings = cats.length > 0 && cat === 'all';
+  $('list').innerHTML = names.map(n => (headings ? `<h2 class="cat">${esc(n || 'Uncategorised')}</h2>` : '') + groups[n].map(x => cardHtml(x.it, x.st)).join('')).join('');
 }
 
 async function load() {
-  const [i, p] = await Promise.all([db.from('items').select('*').order('created_at', {ascending: false}), db.from('prices').select('*')]);
-  if (i.error || p.error) return fail(i.error || p.error);
-  items = i.data; prices = p.data; render();
+  const [i, u, p] = await Promise.all([db.from('items').select('*').order('created_at', {ascending: false}), db.from('item_urls').select('*').order('created_at'), db.from('prices').select('*')]);
+  const e = i.error || u.error || p.error; if (e) return fail(e);
+  items = i.data; urls = u.data; prices = p.data; render();
 }
 async function run(promise) { const {error} = await promise; if (error) fail(error); else $('err').textContent = ''; await load(); }
+const normUrl = v => { v = v.trim(); return v && !/^https?:\/\//i.test(v) ? 'https://' + v : v; };
 
+document.addEventListener('change', e => { if (e.target.id === 'catsel') { cat = e.target.value; render(); } });
 document.addEventListener('click', async e => {
   const t = e.target; let el;
   if (t.id === 'signin') { const {error} = await db.auth.signInWithPassword({email: $('em').value.trim(), password: $('pw').value}); if (error) fail(error); return; }
   if (t.id === 'out') { await db.auth.signOut(); return; }
   if (t.id === 'add') {
-    const name = $('n-name').value.trim(); if (!name) return;
-    let url = $('n-url').value.trim(); if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
-    const first = num($('n-price').value), target = num($('n-target').value);
-    const {data, error} = await db.from('items').insert({name, url: url || null, target}).select().single();
+    const url = normUrl($('n-url').value), typed = $('n-name').value.trim();
+    if (!typed && !url) return;
+    const first = num($('n-price').value), target = num($('n-target').value), category = $('n-cat').value.trim() || null;
+    const {data, error} = await db.from('items').insert({name: typed || nameFromUrl(url), name_auto: !typed && !!url, category, target}).select().single();
     if (error) return fail(error);
-    if (first != null) await db.from('prices').insert({item_id: data.id, price: first, store: host(url), source: 'manual'});
-    ['n-name', 'n-url', 'n-price', 'n-target'].forEach(i => $(i).value = ''); await load(); return;
+    if (url) {
+      const ur = await db.from('item_urls').insert({item_id: data.id, url, store: host(url)}).select().single();
+      if (ur.error) return fail(ur.error);
+      if (first != null) await db.from('prices').insert({item_id: data.id, url_id: ur.data.id, price: first, store: host(url), source: 'manual'});
+    } else if (first != null) await db.from('prices').insert({item_id: data.id, price: first, store: '', source: 'manual'});
+    ['n-name', 'n-url', 'n-price', 'n-target'].forEach(i => $(i).value = ''); openId = data.id; await load();
+    if (url && !typed) $('err').textContent = 'Added. The name and photo fill in after the next price check (within the hour).';
+    return;
   }
   if ((el = t.closest('[data-f]'))) { filter = el.dataset.f; render(); return; }
   if ((el = t.closest('[data-log]'))) {
     const c = el.closest('.card'), g = k => c.querySelector(`[data-p="${k}"]`), p = num(g('price').value); if (p == null) return;
-    return run(db.from('prices').insert({item_id: el.dataset.log, price: p, store: g('store').value.trim(), on_date: g('date').value || today(), sale: g('sale').checked, source: 'manual'}));
+    const store = g('store').value.trim();
+    return run(db.from('prices').insert({item_id: el.dataset.log, price: p, store, on_date: g('date').value || today(), sale: g('sale').checked, source: 'manual'}));
   }
-  if ((el = t.closest('[data-save]'))) {
-    const c = el.closest('.card');
-    return run(db.from('items').update({selector: c.querySelector('[data-s="selector"]').value.trim() || null, render_js: c.querySelector('[data-s="js"]').checked}).eq('id', el.dataset.save));
+  if ((el = t.closest('[data-addurl]'))) {
+    const v = normUrl(el.closest('.card').querySelector('[data-newurl]').value); if (!safeUrl(v)) return fail('Enter a valid link');
+    return run(db.from('item_urls').insert({item_id: el.dataset.addurl, url: v, store: host(v)}));
+  }
+  if ((el = t.closest('[data-saveurl]'))) {
+    const d = el.closest('details');
+    return run(db.from('item_urls').update({selector: d.querySelector('[data-us="selector"]').value.trim() || null, render_js: d.querySelector('[data-us="js"]').checked, last_checked: null, last_status: null}).eq('id', el.dataset.saveurl));
+  }
+  if ((el = t.closest('[data-delurl]'))) { if (confirm('Stop tracking this link? Its price history is kept.')) run(db.from('item_urls').delete().eq('id', el.dataset.delurl)); return; }
+  if ((el = t.closest('[data-savedet]'))) {
+    const c = el.closest('.card'), g = k => c.querySelector(`[data-e="${k}"]`), name = g('name').value.trim(); if (!name) return;
+    return run(db.from('items').update({name, name_auto: false, category: g('category').value.trim() || null, target: num(g('target').value)}).eq('id', el.dataset.savedet));
   }
   if ((el = t.closest('[data-delp]'))) { if (confirm('Delete this price entry?')) run(db.from('prices').delete().eq('id', el.dataset.delp)); return; }
-  if ((el = t.closest('[data-deli]'))) { if (confirm('Delete this item and its price history?')) { openId = null; run(db.from('items').delete().eq('id', el.dataset.deli)); } return; }
+  if ((el = t.closest('[data-deli]'))) { if (confirm('Delete this item, its links and price history?')) { openId = null; run(db.from('items').delete().eq('id', el.dataset.deli)); } return; }
   if (t.matches('[data-bought]')) { run(db.from('items').update({bought: t.checked}).eq('id', t.dataset.bought)); return; }
   if ((el = t.closest('[data-toggle]'))) { if (t.closest('a,button,input')) return; openId = openId === el.dataset.toggle ? null : el.dataset.toggle; render(); }
 });
@@ -167,7 +228,7 @@ function show(session) {
   $('login').hidden = !!session; $('app').hidden = !session; $('out').hidden = !session;
   if (session) load();
 }
-if (SUPABASE_URL.startsWith('YOUR_')) { $('err').textContent = 'Add your Supabase URL and anon key at the top of the script in index.html.'; }
+if (!CFG.SUPABASE_URL || CFG.SUPABASE_URL.startsWith('YOUR_')) { $('err').textContent = 'Add your Supabase URL and public key in config.js.'; }
 else {
   db.auth.getSession().then(({data}) => show(data.session));
   db.auth.onAuthStateChange((_ev, s) => show(s));
